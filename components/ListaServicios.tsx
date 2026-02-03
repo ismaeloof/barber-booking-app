@@ -2,213 +2,192 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import FormularioReserva from './FormularioReserva'
+import SelectorHoras from './SelectorHoras'
+import CalendarioClientes from './CalendarioClientes' // Importación única y limpia
 
-export default function ListaServicios({ servicios }: { servicios: any[] }) {
-    const [seleccionado, setSeleccionado] = useState<any>(null)
-    const [fecha, setFecha] = useState('')
-    const [nombre, setNombre] = useState('')
-    const [telefono, setTelefono] = useState('')
-    const [horasOcupadas, setHorasOcupadas] = useState<string[]>([])
-    const horasPosibles = ['10:00', '10:30', '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-        '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30']
+interface Servicio {
+  id: number;
+  nombre: string;
+  precio: number;
+  duracion_minutos: number;
+}
 
-    //Cada vez que cambie la fecha preguntamos si esas horas están pilladas
-    useEffect(() => {
-        async function buscarCitas() {
-            if (!fecha) return
+export default function ListaServicios({ servicios }: { servicios: Servicio[] }) {
+  // ESTADOS
+  const [seleccionado, setSeleccionado] = useState<Servicio | null>(null)
+  const [fechaObjeto, setFechaObjeto] = useState<Date | undefined>(new Date());
+  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
+  const [nombre, setNombre] = useState('')
+  const [telefono, setTelefono] = useState('')
+  const [horasOcupadas, setHorasOcupadas] = useState<string[]>([])
+  const [mostrarExito, setMostrarExito] = useState(false);
+  const [horaConfirmada, setHoraConfirmada] = useState('');
+  
+  const telefonoValido = /^[6789]\d{8}$/.test(telefono);
 
-            //Aseguramos que la fecha sea string AAA-MM-DD
-            const fechaLimpia = new Date(fecha).toISOString().split('T')[0]
-            console.log("Buscando citas para:", fechaLimpia)
+  // EFECTO: Buscar huecos cuando cambia la fecha
+  useEffect(() => {
+    async function buscarCitas() {
+      if (!fecha) return
+      const { data } = await supabase
+        .from('citas')
+        .select('hora, servicios (duracion_minutos)')
+        .eq('fecha', fecha)
 
-            const { data, error } = await supabase
-                .from('citas')
-                .select(`hora,
-                        servicios (duracion_minutos)`)
-                .eq('fecha', fechaLimpia)
+      if (data) {
+        const huecos: string[] = [];
+        data.forEach((cita: any) => {
+          const horaInicio = String(cita.hora).substring(0, 5);
+          huecos.push(horaInicio);
+          const duracion = cita.servicios?.duracion_minutos || 30;
+          // Si dura 60 min, bloqueamos también la siguiente media hora
+          if (duracion === 60) {
+            const [h, m] = horaInicio.split(':').map(Number);
+            let nextH = h, nextM = m + 30;
+            if (nextM === 60) { nextH++; nextM = 0; }
+            huecos.push(`${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`);
+          }
+        });
+        setHorasOcupadas(huecos);
+      }
+    }
+    buscarCitas()
+  }, [fecha])
 
-            if (data) {
-                const todosLosHuecos: string[] = [];
+  // LÓGICA: Manejador de cambio de fecha (Clean Code)
+  const handleCambioFecha = (d: Date | undefined) => {
+    if (d) {
+      setFechaObjeto(d);
+      // Ajuste de zona horaria manual para evitar errores de día
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      setFecha(`${yyyy}-${mm}-${dd}`);
+    }
+  };
 
-                data.forEach((cita: any) => {
-                    //Convertimos a String 
-                    const horaString = String(cita.hora);
-                    const partes = horaString.split(':');
+  const realizarReserva = async (hora: string) => {
+    const { error } = await supabase
+      .from('citas')
+      .insert([{
+        fecha,
+        hora,
+        servicio_id: seleccionado!.id, 
+        nombre_cliente: nombre,
+        telefono
+      }]);
 
-                    //Formateamos HH:MM asegurando que sean Strings
-                    const h = String(partes[0]).padStart(2, '0');
-                    const m = String(partes[1] || '00').padStart(2, '0');
-                    const horaInicio = `${h}:${m}`;
+    if (error) {
+      console.error("Error Supabase:", error);
+      alert("Error: " + error.message);
+    } else {
+      setHoraConfirmada(hora);
+      setMostrarExito(true); 
+    }
+  };
 
-                    todosLosHuecos.push(horaInicio);
+  const googleCalendar = () => {
+    if (!seleccionado || !horaConfirmada) return '';
+    const titulo = encodeURIComponent(`Cita: ${seleccionado.nombre}`);
+    const detalles = encodeURIComponent(`Servicio: ${seleccionado.nombre}`);
+    const fechaLimpia = fecha.replace(/-/g, '');
+    const horaLimpia = horaConfirmada.replace(':', '');
+    const inicio = `${fechaLimpia}T${horaLimpia}`;
+    const fin = `${fechaLimpia}T${parseInt(horaLimpia) + 1}${horaLimpia.substring(2)}00`;
+    return `https://www.google.com/calendar/render?action=TEMPLATE&text=${titulo}&dates=${inicio}/${fin}&details=${detalles}`;
+  };
 
-                    //Accedemos al primer elemento de la lista de servicios
-                    const servicios = Array.isArray(cita.servicios) ? cita.servicios[0] : cita.servicios;
-                    const duracion = servicios?.duracion_minutos || 30;
+  return (
+    <div className="w-full max-w-6xl mx-auto p-4 select-none">
+      {/* 1. GRID DE SERVICIOS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        {servicios.map((s) => (
+          <div
+            key={s.id}
+            onClick={() => setSeleccionado(s)}
+            className={`p-6 rounded-3xl cursor-pointer border-2 transition-all duration-300 transform hover:-translate-y-1 ${
+              seleccionado?.id === s.id 
+                ? 'border-[#0A9396] bg-[#001219] text-white shadow-lg shadow-[#0a9396]/20' 
+                : 'bg-white border-[#0A9396]/30 text-[#001219] hover:border-[#0A9396] hover:bg-gray-50'
+            }`}
+          >
+            <div className="flex justify-between items-start">
+              <h3 className={`text-xl font-bold ${seleccionado?.id === s.id ? 'text-white' : 'text-[#001219]'}`}>{s.nombre}</h3>
+              {seleccionado?.id === s.id && (
+                <div className="bg-[#0A9396] rounded-full p-1">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                </div>
+              )}
+            </div>
+            <div className="mt-4 flex items-baseline">
+              <p className="text-3xl font-black text-[#0A9396]">{s.precio}€</p>
+              <span className="ml-2 text-xs opacity-60">/ {s.duracion_minutos} min</span>
+            </div>
+          </div>
+        ))}
+      </div>
 
-                    console.log(`Cita a las ${horaInicio} detectada con duración: ${duracion} min`);
+      {/* 2. PANEL DE RESERVA */}
+      {seleccionado && (
+        <div className="bg-[#001219] rounded-[3rem] p-8 md:p-14 text-white shadow-2xl mt-10 w-full mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12"> 
+            
+            
+            {/* COLUMNA IZQUIERDA: CALENDARIO + DATOS */}
+            <div className="flex flex-col h-full justify-between">
+              <div>
+                <h3 className="text-4xl font-black text-[#94D2BD] tracking-tighter uppercase mb-2">Datos de Reserva</h3>
+                <p className="text-gray-400 text-sm mb-8">Selecciona el día perfecto.</p>
+                
+                {/* CALENDARIO */}
+                <div className="w-full flex justify-center mb-8">
+                  <CalendarioClientes 
+                    fecha={fechaObjeto} 
+                    setFecha={handleCambioFecha} 
+                  />
+                </div>
+              </div>
 
-                    //Si la cita es de 60 mins, calculamos y bloqueamos el siguiente hueco
-                    if (duracion === 60) {
-                        let proximaH = parseInt(h);
-                        let proximosM = parseInt(m) + 30;
-
-                        if (proximosM === 60) {
-                            proximaH += 1;
-                            proximosM = 0;
-                        }
-
-                    const horaExtra = `${String(proximaH).padStart(2, '0')}:${String(proximosM).padStart(2, '0')}`;
-                    todosLosHuecos.push(horaExtra);
-                    }
-                });
-
-                console.log("LISTA FINAL BLOQUEADA:", todosLosHuecos);
-                setHorasOcupadas([...todosLosHuecos]); // Copia limpia para forzar el render
-                }
-        }
-        buscarCitas()
-    }, [fecha])  //Fin de useEffect
-
-    const realizarReserva = async (hora: string) => {
-        if (!seleccionado || !nombre || !telefono) {
-            alert("Por favor rellena tus datos.");
-            return;
-        }
-
-        const { error } = await supabase
-            .from('citas')
-            .insert([
-                {
-                    fecha: new Date(fecha).toISOString().split('T')[0],
-                    hora: hora,
-                    servicio_id: seleccionado.id,
-                    nombre_cliente: nombre,
-                    telefono: telefono
-                }
-            ]);
-        
-        if (error) {
-            alert("Error: " + error.message);
-        } else {
-            alert ("¡Cita reservada con éxito!");
-            window.location.reload();
-        }
-        };
-    
-
-    return (
-        <div className="w-full max-w-5xl">
-            {/* Contenedor de Tarjetas */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {servicios.map((servicio) => (
-                    <div
-                        key={servicio.id}
-                        onClick={() => setSeleccionado(servicio)}
-                        className={`relative overflow-hidden group border-2 p-8 rounded-3xl cursor-pointer transition-all duration-300 transform hover:-translate-y-2 ${
-                            seleccionado?.id === servicio.id
-                                ? 'border-[#0A9396] bg-[#001219] shadow-2xl'
-                                : 'bg-white border-gray-100 shadow-sm hover:border-[#94D2BD]'
-                            }`}
-                    >
-                        {/* Indicador visual de selección (Círculo en la esquina) */}
-                        <div className={`absolute top-4 right-4 w-4 h-4 rounded-full transition-colors ${seleccionado?.id === servicio.id ? 'bg-[#94D2BD] animate-pulse' : 'bg-gray-100'
-                            }`} />
-
-                        <h2 className={`text-2xl font-bold transition-colors ${seleccionado?.id === servicio.id ? 'text-white' : 'text-[#001219]'
-                            }`}>
-                            {servicio.nombre}
-                        </h2>
-
-                        <div className="flex items-baseline mt-6">
-                            <span className={`text-4xl font-black ${seleccionado?.id === servicio.id ? 'text-[#94D2BD]' : 'text-[#0A9396]'
-                                }`}>
-                                {servicio.precio}€
-                            </span>
-                            <span className="ml-2 text-sm text-gray-400">/ {servicio.duracion_minutos} min</span>
-                        </div>
-
-                        <button className={`w-full mt-8 py-3 rounded-xl font-bold uppercase tracking-wider transition-all ${seleccionado?.id === servicio.id
-                                ? 'bg-[#94D2BD] text-[#001219]'
-                                : 'bg-[#001219] text-white group-hover:bg-[#005F73]'
-                            }`}>
-                            {seleccionado?.id === servicio.id ? 'Seleccionado' : 'Elegir servicio'}
-                        </button>
-                    </div>
-                ))}
+              {/* INPUTS - CLAVE: w-full para ocupar todo el ancho */}
+              <div className="w-full">
+                 <FormularioReserva 
+                    nombre={nombre} 
+                    setNombre={setNombre} 
+                    telefono={telefono} 
+                    setTelefono={setTelefono} 
+                 />
+              </div>
             </div>
 
-            {/* Panel de Confirmación y Fecha */}
-            {seleccionado && (
-                <div className="mt-16 p-10 bg-[#001219] text-white rounded-[2rem] shadow-2xl border-t-4 border-[#0A9396] animate-in slide-in-from-bottom-8 duration-500">
-                    <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-                        <div>
-                            <p className="text-[#94D2BD] font-medium uppercase tracking-widest text-sm">Elige el momento</p>
-                            <h3 className="text-3xl font-bold mt-2">Reservar {seleccionado.nombre}</h3>
-                            <p className="text-gray-400 mt-1">Estamos listos para verte en nuestra Barbería.</p>
-                        </div>
-
-                        <div className="w-full md:w-auto">
-                            <label className="block text-xs text-gray-400 uppercase mb-2 ml-1">Fecha de la cita</label>
-                            <input
-                                type="date"
-                                value={fecha}
-                                onChange={(e) => {
-                                    console.log("Cambiando fecha a:", e.target.value);
-                                    setFecha(e.target.value);
-                                }}
-                                className="bg-[#005F73] text-white p-4 rounded-2xl border-none outline-none focus:ring-2 focus:ring-[#94D2BD] w-full cursor-pointer"
-                            />
-                        
-                            <div className="mb-8 mt-4 space-y-4">
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <input 
-                                    type="text" 
-                                    placeholder="Nombre completo"
-                                    value={nombre}
-                                    onChange={(e) => setNombre(e.target.value)}
-                                    className="w-full bg-[#00222a] text-white p-4 rounded-2xl border border-[#005F73] focus:border-[#94D2BD] outline-none transition-all"
-                                    />
-                                    <input 
-                                    type="tel" 
-                                    placeholder="Teléfono (ej: 600123456)"
-                                    value={telefono}
-                                    onChange={(e) => setTelefono(e.target.value)}
-                                    className="w-full bg-[#00222a] text-white p-4 rounded-2xl border border-[#005F73] focus:border-[#94D2BD] outline-none transition-all"
-                                    />
-                                </div>
-                                </div>
-                            <div className="w-full md:w-auto mt-6">
-                                <label className="block text-xs text-gray-400 uppercase mb-4 ml-1">Horas disponibles</label>
-                                <div className="grid grid-cols-4 gap-3">
-                                    {horasPosibles.map((h) => {
-                                        const estaOcupada = horasOcupadas.some(ocupada => ocupada.trim() === h.trim());
-
-                                        return (
-                                            <button
-                                                key={h}
-                                                disabled={estaOcupada}
-                                                onClick={() => {
-                                                    console.log("Has pulsado la hora:", h); //confirmamos que funciona el boton
-                                                    realizarReserva(h);
-                                                }}
-                                                className={`p-3 rounded-xl text-sm font-bold transition-all ${
-                                                    estaOcupada
-                                                        ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                                                        : 'bg-[#0A9396] text-white hover:bg-[#94D2BD] hover:text-[#001219]'
-                                                    }`}
-                                            >
-                                                {h}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* COLUMNA DERECHA: HORAS */}
+            <div className={`flex flex-col h-full border-l border-white/5 pl-12 transition-opacity duration-500 ${!telefonoValido ? 'opacity-30 grayscale pointer-events-none' : 'opacity-100'}`}>
+              <h4 className="text-[#94D2BD] text-xs font-black uppercase tracking-[0.4em] mb-8 text-center">
+                {telefonoValido ? 'Horarios Disponibles' : 'Introduce tu teléfono'}
+              </h4>
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
+                <SelectorHoras 
+                  horasOcupadas={horasOcupadas} 
+                  onSeleccionarHora={realizarReserva} 
+                />
+              </div>
+            </div>
+          </div>
         </div>
-    )
+      )}
+
+      {/* 3. MODAL ÉXITO */}
+      {mostrarExito && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
+           {/* ... (Tu código del modal estaba bien, lo mantengo resumido aquí para no hacer scroll infinito) ... */}
+           <div className="bg-[#001219] border border-[#0A9396]/50 p-10 rounded-[2.5rem] text-center max-w-sm w-full">
+              <h3 className="text-2xl font-bold text-white mb-4">¡Confirmado!</h3>
+              <p className="text-[#94D2BD] text-xl mb-6">{fecha.split('-').reverse().join('/')} a las {horaConfirmada}</p>
+              <a href={googleCalendar()} target="_blank" className="block w-full py-4 bg-white text-[#001219] font-bold rounded-2xl mb-3">AÑADIR A CALENDARIO</a>
+              <button onClick={() => window.location.reload()} className="w-full py-4 bg-[#0A9396] text-white font-bold rounded-2xl">CERRAR</button>
+           </div>
+        </div>
+      )}
+    </div>
+  )
 }
