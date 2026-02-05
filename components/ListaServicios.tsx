@@ -179,13 +179,13 @@ export default function ListaServicios({ servicios }: { servicios: Servicio[] })
       {/* 3. MODAL ÉXITO */}
       {mostrarExito && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-           {/* ... (Tu código del modal estaba bien, lo mantengo resumido aquí para no hacer scroll infinito) ... */}
            <div className="bg-[#001219] border border-[#0A9396]/50 p-10 rounded-[2.5rem] text-center max-w-sm w-full">
               <h3 className="text-2xl font-bold text-white mb-4">¡Confirmado!</h3>
-              <p className="text-[#94D2BD] text-xl mb-6">{fecha.split('-').reverse().join('/')} a las {horaConfirmada}</p>
+              <p className="text-[#94D2BD] text-xl mb-6">{seleccionado?.nombre} el día {fecha.split('-').reverse().join('/')} a las {horaConfirmada}</p>
               <a href={googleCalendar()} target="_blank" className="block w-full py-4 bg-white text-[#001219] font-bold rounded-2xl mb-3">AÑADIR A CALENDARIO</a>
               <button onClick={() => window.location.reload()} className="w-full py-4 bg-[#0A9396] text-white font-bold rounded-2xl">CERRAR</button>
            </div>
+           
         </div>
       )}
     </div>
