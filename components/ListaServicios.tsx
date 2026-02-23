@@ -13,7 +13,14 @@ interface Servicio {
   duracion_minutos: number;
 }
 
-export default function ListaServicios({ servicios }: { servicios: Servicio[] }) {
+export default function ListaServicios({ 
+  servicios, 
+  barberiaId 
+}: { 
+  servicios: Servicio[]
+  barberiaId: string 
+}) {
+  
   // ESTADOS
   const [seleccionado, setSeleccionado] = useState<Servicio | null>(null)
   const [fechaObjeto, setFechaObjeto] = useState<Date | undefined>(new Date());
@@ -27,33 +34,36 @@ export default function ListaServicios({ servicios }: { servicios: Servicio[] })
   const telefonoValido = /^[6789]\d{8}$/.test(telefono);
 
   // EFECTO: Buscar huecos cuando cambia la fecha
-  useEffect(() => {
-    async function buscarCitas() {
-      if (!fecha) return
-      const { data } = await supabase
-        .from('citas')
-        .select('hora, servicios (duracion_minutos)')
-        .eq('fecha', fecha)
+useEffect(() => {
+  async function buscarCitas() {
+    if (!fecha) return
+    
+    // Usar la función RPC segura
+    const { data } = await supabase
+      .rpc('get_horas_ocupadas', {
+        p_barberia_id: barberiaId,
+        p_fecha: fecha
+      })
 
-      if (data) {
-        const huecos: string[] = [];
-        data.forEach((cita: any) => {
-          const horaInicio = String(cita.hora).substring(0, 5);
-          huecos.push(horaInicio);
-          const duracion = cita.servicios?.duracion_minutos || 30;
-          // Si dura 60 min, bloqueamos también la siguiente media hora
-          if (duracion === 60) {
-            const [h, m] = horaInicio.split(':').map(Number);
-            let nextH = h, nextM = m + 30;
-            if (nextM === 60) { nextH++; nextM = 0; }
-            huecos.push(`${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`);
-          }
-        });
-        setHorasOcupadas(huecos);
-      }
+    if (data) {
+      const huecos: string[] = [];
+      data.forEach((item: any) => {
+        const horaInicio = String(item.hora).substring(0, 5);
+        huecos.push(horaInicio);
+        const duracion = item.duracion_minutos || 30;
+        // Si dura 60 min, bloqueamos también la siguiente media hora
+        if (duracion === 60) {
+          const [h, m] = horaInicio.split(':').map(Number);
+          let nextH = h, nextM = m + 30;
+          if (nextM === 60) { nextH++; nextM = 0; }
+          huecos.push(`${String(nextH).padStart(2, '0')}:${String(nextM).padStart(2, '0')}`);
+        }
+      });
+      setHorasOcupadas(huecos);
     }
-    buscarCitas()
-  }, [fecha])
+  }
+  buscarCitas()
+}, [fecha, barberiaId])
 
   // LÓGICA: Manejador de cambio de fecha (Clean Code)
   const handleCambioFecha = (d: Date | undefined) => {
@@ -75,7 +85,8 @@ export default function ListaServicios({ servicios }: { servicios: Servicio[] })
         hora,
         servicio_id: seleccionado!.id, 
         nombre_cliente: nombre,
-        telefono
+        telefono,
+        barberia_id: barberiaId
       }]);
 
     if (error) {

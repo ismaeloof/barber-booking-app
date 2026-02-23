@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🔥 Barber Booking SaaS
 
-## Getting Started
+Sistema de reservas multi-tenant para barberías construido en público durante 90 días.
 
-First, run the development server:
+## 🎯 Objetivo
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+Demostrar habilidades de desarrollo full-stack construyendo un SaaS completo desde cero, documentando todo el proceso.
+
+## 🛠️ Stack Tecnológico
+
+- **Frontend:** Next.js 15 (App Router), React 19, TypeScript
+- **Backend:** Supabase (PostgreSQL + Auth + Storage)
+- **Estilos:** Tailwind CSS 4
+- **Pagos:** Stripe (próximamente)
+- **Deploy:** Vercel (próximamente)
+
+## ✨ Características
+
+### Implementadas ✅
+- Arquitectura multi-tenant con Row Level Security
+- Sistema de autenticación
+- Reservas de citas por horas
+- Panel de administración
+- Bloqueo automático de horarios ocupados
+- Resumen de caja diario
+- Rutas dinámicas por slug de barbería
+
+### En desarrollo 🚧
+- Sistema de suscripciones con Stripe
+- Notificaciones por email/SMS
+- Personalización de colores por barbería
+- Analytics y estadísticas avanzadas
+
+## 🗄️ Arquitectura de Base de Datos
+```
+barberias (tenants)
+├── servicios (1:N)
+└── citas (1:N)
+    └── servicios (N:1)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Row Level Security:** Cada barbería solo puede acceder a sus propios datos.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🚀 Instalación Local
+```bash
+# Clonar repositorio
+git clone https://github.com/ismaeloof/barber-booking-saas.git
+cd barber-booking-saas
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# Instalar dependencias
+npm install
 
-## Learn More
+# Configurar variables de entorno
+cp .env.example .env.local
+# Añade tus credenciales de Supabase
 
-To learn more about Next.js, take a look at the following resources:
+# Ejecutar en desarrollo
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📊 Progreso del Proyecto
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Este proyecto se está construyendo en público durante 90 días.
 
-## Deploy on Vercel
+**Día 1 (23/02/2026):** 
+- ✅ Arquitectura multi-tenant con RLS
+- ✅ Políticas de seguridad
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Día 2-3 (24-25/02/2026):**
+- ✅ Reestructuración de rutas dinámicas
+- ✅ Integración frontend-backend
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Día 4 (26/02/2026):**
+- ✅ Sistema de reservas completo
+- ✅ Panel de admin con autenticación
+- ✅ Bloqueo de horas ocupadas
+- ✅ Resumen de caja
+
+Sigue el progreso:
+- [X](https://x.com/Ismaeloof_)
+- [LinkedIn](https://www.linkedin.com/in/ismael-carranza-g%C3%B3mez-706a65177/)
+
+## 🙏 Build in Public
+
+Este proyecto es parte de mi journey de #buildinpublic. Comparto todo el proceso de desarrollo, decisiones arquitectónicas, y aprendizajes.
+
+## 📝 Licencia
+
+MIT
+
+---
+
+Desarrollado por [Ismael](https://github.com/ismaeloof) | Sevilla, España 🇪🇸
+```
+
+---
+
+## **PASO 3: Crea `.env.example`**
+
+Crea `.env.example` en la raíz:
+```
+NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
