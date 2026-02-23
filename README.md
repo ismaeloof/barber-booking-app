@@ -92,12 +92,3 @@ MIT
 
 Desarrollado por [Ismael](https://github.com/ismaeloof) | Sevilla, España 🇪🇸
 ```
-
----
-
-## **PASO 3: Crea `.env.example`**
-
-Crea `.env.example` en la raíz:
-```
-NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
-NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key
